@@ -94,7 +94,7 @@ function update_script() {
   msg_ok "Updated Omada Controller"
   exit 0
 }
-
+export FUNCTIONS_FILE_PATH="$(curl -fsSL https://raw.githubusercontent.com/haris2887/Omada-LXC/main/misc/install.func)"
 start
 build_container
 description
