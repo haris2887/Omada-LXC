@@ -83,6 +83,26 @@ fi
 # Verify Java installation
 java -version
 
+msg_info "Installing libssl1.1 (required for MongoDB and Omada)"
+libssl_installed=false
+for i in {1..3}; do
+  if wget --timeout=30 --tries=3 -c http://ftp.us.debian.org/debian/pool/main/o/openssl/libssl1.1_1.1.1w-0+deb11u1_amd64.deb; then
+    if $STD dpkg -i libssl1.1_1.1.1w-0+deb11u1_amd64.deb; then
+      libssl_installed=true
+      rm -f libssl1.1_1.1.1w-0+deb11u1_amd64.deb
+      break
+    fi
+  fi
+  msg_info "Retrying libssl1.1 download/install (attempt $i/3)..."
+  sleep 5
+done
+
+if [ "$libssl_installed" = false ]; then
+  msg_error "Failed to install libssl1.1 after 3 attempts"
+  exit 1
+fi
+msg_ok "Installed libssl1.1"
+
 msg_info "Installing MongoDB 4.4 (Non-AVX Compatible)"
 # Force MongoDB 4.4 for all systems to ensure compatibility
 MONGODB_VERSION="4.4"
@@ -144,26 +164,6 @@ $STD apt-mark hold mongodb-org mongodb-org-server mongodb-org-shell mongodb-org-
 
 $STD systemctl enable mongod
 msg_ok "Installed MongoDB ${MONGODB_VERSION}"
-
-msg_info "Installing libssl1.1 (required for Omada)"
-libssl_installed=false
-for i in {1..3}; do
-  if wget --timeout=30 --tries=3 -c http://ftp.us.debian.org/debian/pool/main/o/openssl/libssl1.1_1.1.1w-0+deb11u1_amd64.deb; then
-    if $STD dpkg -i libssl1.1_1.1.1w-0+deb11u1_amd64.deb; then
-      libssl_installed=true
-      rm -f libssl1.1_1.1.1w-0+deb11u1_amd64.deb
-      break
-    fi
-  fi
-  msg_info "Retrying libssl1.1 download/install (attempt $i/3)..."
-  sleep 5
-done
-
-if [ "$libssl_installed" = false ]; then
-  msg_error "Failed to install libssl1.1 after 3 attempts"
-  exit 1
-fi
-msg_ok "Installed libssl1.1"
 
 msg_info "Installing Omada Controller"
 # Try multiple patterns to find the latest Omada package with enhanced error handling
