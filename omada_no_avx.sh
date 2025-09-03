@@ -95,6 +95,10 @@ function update_script() {
   exit 0
 }
 export FUNCTIONS_FILE_PATH="$(curl -fsSL https://raw.githubusercontent.com/haris2887/Omada-LXC/main/misc/install.func)"
+# Override the installation script to use our custom version  
+export var_install="omada-install"
+# Force the correct installation script URL
+export INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/haris2887/Omada-LXC/main/install/omada-install.sh"
 start
 build_container
 description
