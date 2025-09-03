@@ -4,7 +4,7 @@
 # Author: tteck
 # License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
 # Source: https://www.tp-link.com/us/support/download/omada-software-controller/
-# Modified to support non-AVX systems by using MongoDB 4.4
+# Modified to support non-AVX systems by using MongoDB 4.4 and OpenJDK 21
 
 source /dev/stdin <<< "$FUNCTIONS_FILE_PATH"
 color
@@ -36,11 +36,52 @@ $STD apt-get install -y mc
 $STD apt-get install -y gnupg2
 $STD apt-get install -y jsvc
 $STD apt-get install -y ca-certificates
+$STD apt-get install -y wget
+$STD apt-get install -y apt-transport-https
 msg_ok "Installed Dependencies"
 
-msg_info "Installing Java"
-$STD apt-get install -y openjdk-17-jre-headless
-msg_ok "Installed OpenJDK 17 Java"
+msg_info "Installing OpenJDK 21"
+# Method 1: Try Eclipse Temurin repository (preferred)
+temurin_installed=false
+
+# Add Eclipse Temurin repository
+for i in {1..3}; do
+  if wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /usr/share/keyrings/adoptium.gpg >/dev/null; then
+    echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list
+    
+    $STD apt-get update
+    
+    if $STD apt-get install -y temurin-21-jre; then
+      temurin_installed=true
+      msg_ok "Installed Eclipse Temurin OpenJDK 21"
+      break
+    fi
+  fi
+  
+  if [ $i -lt 3 ]; then
+    msg_info "Retrying Temurin installation (attempt $((i+1))/3)..."
+    sleep 5
+  fi
+done
+
+# Method 2: Fallback to Debian backports
+if [ "$temurin_installed" = false ]; then
+  msg_info "Temurin failed, trying Debian backports..."
+  echo "deb http://deb.debian.org/debian bookworm-backports main" > /etc/apt/sources.list.d/backports.list
+  $STD apt-get update
+  
+  if $STD apt-get install -t bookworm-backports openjdk-21-jre-headless; then
+    msg_ok "Installed OpenJDK 21 from Debian backports"
+  else
+    # Method 3: Final fallback to OpenJDK 17
+    msg_warn "OpenJDK 21 not available, falling back to OpenJDK 17"
+    $STD apt-get install -y openjdk-17-jre-headless
+    msg_ok "Installed OpenJDK 17 (fallback)"
+  fi
+fi
+
+# Verify Java installation
+java -version
 
 msg_info "Installing MongoDB 4.4 (Non-AVX Compatible)"
 # Force MongoDB 4.4 for all systems to ensure compatibility
