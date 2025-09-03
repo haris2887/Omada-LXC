@@ -68,14 +68,18 @@ function update_script() {
   
   msg_ok "Updated MongoDB to $MONGODB_VERSION"
 
-  msg_info "Checking if right Azul Zulu Java is installed"
-  java_version=$(java -version 2>&1 | awk -F[\"_] '/version/ {print $2}')
-  if [[ "$java_version" =~ ^1\.8\.* ]]; then
-    $STD apt-get remove --purge -y zulu8-jdk
-    $STD apt-get -y install zulu21-jre-headless
-    msg_ok "Updated Azul Zulu Java to 21"
+  msg_info "Checking if right Java is installed"
+  # Check for OpenJDK 21 or install it
+  if java -version 2>&1 | grep -q "openjdk version \"21\|temurin-21"; then
+    msg_ok "OpenJDK 21 already installed"
   else
-    msg_ok "Azul Zulu Java 21 already installed"
+    # Install Eclipse Temurin OpenJDK 21
+    $STD apt-get install -y wget apt-transport-https gnupg
+    wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /usr/share/keyrings/adoptium.gpg >/dev/null
+    echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list
+    $STD apt-get update
+    $STD apt-get install -y temurin-21-jre
+    msg_ok "Installed OpenJDK 21"
   fi
 
   msg_info "Updating Omada Controller"
@@ -94,11 +98,68 @@ function update_script() {
   msg_ok "Updated Omada Controller"
   exit 0
 }
+
 export FUNCTIONS_FILE_PATH="$(curl -fsSL https://raw.githubusercontent.com/haris2887/Omada-LXC/main/misc/install.func)"
-# Override the installation script to use our custom version  
 export var_install="omada-install"
-# Force the correct installation script URL
-export INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/haris2887/Omada-LXC/main/install/omada-install.sh"
+
+# Custom build_container function that uses our installation script
+build_container() {
+  if [ "$CT_TYPE" == "1" ]; then
+    FEATURES="keyctl=1,nesting=1"
+  else
+    FEATURES="nesting=1"
+  fi
+
+  if [ "$ENABLE_FUSE" == "yes" ]; then
+    FEATURES="$FEATURES,fuse=1"
+  fi
+
+  if [[ $DIAGNOSTICS == "yes" ]]; then
+    post_to_api
+  fi
+
+  TEMP_DIR=$(mktemp -d)
+  pushd "$TEMP_DIR" >/dev/null
+  export FUNCTIONS_FILE_PATH="$(curl -fsSL https://raw.githubusercontent.com/haris2887/Omada-LXC/main/misc/install.func)"
+  export CACHER="$APT_CACHER"
+  export CACHER_IP="$APT_CACHER_IP"
+  export tz="$timezone"
+  export APPLICATION="$APP"
+  export app="$NSAPP"
+  export PASSWORD="$PW"
+  export VERBOSE="$VERBOSE"
+  export SSH_ROOT="${SSH}"
+  export SSH_AUTHORIZED_KEY
+  export CTID="$CT_ID"
+  export CTTYPE="$CT_TYPE"
+  export ENABLE_FUSE="$ENABLE_FUSE"
+  export ENABLE_TUN="$ENABLE_TUN"
+  export PCT_OSTYPE="$var_os"
+  export PCT_OSVERSION="$var_version"
+  export PCT_DISK_SIZE="$DISK_SIZE"
+  export PCT_OPTIONS="
+    -features $FEATURES
+    -hostname $HN
+    -tags $TAGS
+    $SD
+    $NS
+    $NET_STRING
+    -onboot 1
+    -cores $CORE_COUNT
+    -memory $RAM_SIZE
+    -unprivileged $CT_TYPE
+    $PW
+  "
+  
+  # Create the container using the original script
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/create_lxc.sh)" $?
+
+  # Now install using our custom script
+  msg_info "Installing Omada Controller (No-AVX Compatible)"
+  lxc-attach -n "$CTID" -- bash -c "$(curl -fsSL https://raw.githubusercontent.com/haris2887/Omada-LXC/main/install/omada-install.sh)"
+  msg_ok "Omada Installation Completed"
+}
+
 start
 build_container
 description
