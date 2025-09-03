@@ -68,7 +68,17 @@ $STD systemctl enable mongod
 msg_ok "Installed MongoDB ${MONGODB_VERSION}"
 
 msg_info "Installing libssl1.1 (required for Omada)"
-wget -c http://ftp.us.debian.org/debian/pool/main/o/openssl/libssl1.1_1.1.1w-0+deb11u1_amd64.deb
+for i in {1..3}; do
+  if wget -c http://ftp.us.debian.org/debian/pool/main/o/openssl/libssl1.1_1.1.1w-0+deb11u1_amd64.deb; then
+    break
+  fi
+  if [ $i -eq 3 ]; then
+    msg_error "Failed to download libssl1.1 after 3 attempts"
+    exit 1
+  fi
+  msg_info "Retrying libssl1.1 download (attempt $i/3)..."
+  sleep 5
+done
 $STD dpkg -i libssl1.1_1.1.1w-0+deb11u1_amd64.deb
 rm -f libssl1.1_1.1.1w-0+deb11u1_amd64.deb
 msg_ok "Installed libssl1.1"
