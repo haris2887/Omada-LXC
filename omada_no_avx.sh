@@ -168,7 +168,7 @@ build_container() {
 
   # Now install using our custom script
   msg_info "Installing Omada Controller (No-AVX Compatible)"
-  lxc-attach -n "$CTID" -- bash -c "$(curl -fsSL https://raw.githubusercontent.com/haris2887/Omada-LXC/main/install/omada-install.sh)"
+  pct exec "$CTID" -- bash -c "$(curl -fsSL https://raw.githubusercontent.com/haris2887/Omada-LXC/main/install/omada-install.sh)"
   msg_ok "Omada Installation Completed"
 }
 
